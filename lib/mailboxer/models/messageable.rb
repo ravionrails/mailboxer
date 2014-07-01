@@ -78,6 +78,23 @@ module Mailboxer
         message.deliver false, sanitize_text
       end
 
+      #Sends a messages, starting a new conversation, with the messageable
+      #as originator
+      def save_message(recipients, msg_body, subject, sanitize_text=true, attachment=nil, message_timestamp = Time.now)
+        message = Mailboxer::MessageBuilder.new({
+          :sender       => self,
+          :recipients   => recipients,
+          :body         => msg_body,
+          :subject      => subject,
+          :attachment   => attachment,
+          :draft        => true,
+          :created_at   => message_timestamp,
+          :updated_at   => message_timestamp
+        }).build
+
+        message.save
+      end
+
       #Basic reply method. USE NOT RECOMENDED.
       #Use reply_to_sender, reply_to_all and reply_to_conversation instead.
       def reply(conversation, recipients, reply_body, subject=nil, sanitize_text=true, attachment=nil)

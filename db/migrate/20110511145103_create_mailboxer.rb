@@ -12,6 +12,7 @@ class CreateMailboxer < ActiveRecord::Migration
       t.references :receiver, :polymorphic => true
       t.column :notification_id, :integer, :null => false
       t.column :is_read, :boolean, :default => false
+      t.column :is_archived, :boolean, :default => false
       t.column :trashed, :boolean, :default => false
       t.column :deleted, :boolean, :default => false
       t.column :mailbox_type, :string, :limit => 25
