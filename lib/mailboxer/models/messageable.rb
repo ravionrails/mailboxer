@@ -220,6 +220,27 @@ module Mailboxer
         end
       end
 
+      #Mark the object as trashed for messageable.
+      #
+      #Object can be:
+      #* A Receipt
+      #* A Message
+      #* A Notification
+      #* A Conversation
+      #* An array with any of them
+      def archive(obj)
+        case obj
+        when Mailboxer::Receipt
+          obj.move_to_archive if obj.receiver == self
+        when Mailboxer::Message, Mailboxer::Notification
+          obj.move_to_archive(self)
+        when Mailboxer::Conversation
+          obj.move_to_archive(self)
+        when Array
+          obj.map{ |sub_obj| archive(sub_obj) }
+        end
+      end
+
       #Mark the object as not trashed for messageable.
       #
       #Object can be:

@@ -27,6 +27,8 @@ class Mailboxer::Receipt < ActiveRecord::Base
   scope :not_trash, lambda { where(:trashed => false) }
   scope :deleted, lambda { where(:deleted => true) }
   scope :not_deleted, lambda { where(:deleted => false) }
+  scope :archive, lambda { where(:is_archived => true, :deleted => false) }
+  scope :not_archived, lambda { where(:is_archived => false) }
   scope :is_read, lambda { where(:is_read => true) }
   scope :is_unread, lambda { where(:is_read => false) }
 
@@ -45,6 +47,11 @@ class Mailboxer::Receipt < ActiveRecord::Base
     #Marks all the receipts from the relation as trashed
     def move_to_trash(options={})
       update_receipts({:trashed => true}, options)
+    end
+
+    #Marks all the receipts from the relation as archived
+    def move_to_archive(options={})
+      update_receipts({:is_archived => true}, options)
     end
 
     #Marks all the receipts from the relation as not trashed
@@ -113,6 +120,11 @@ class Mailboxer::Receipt < ActiveRecord::Base
   #Marks the receipt as trashed
   def move_to_trash
     update_attributes(:trashed => true)
+  end
+
+  #Marks the receipt as trashed
+  def move_to_archive
+    update_attributes(:is_archived => true)
   end
 
   #Marks the receipt as not trashed

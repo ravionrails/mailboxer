@@ -148,6 +148,12 @@ class Mailboxer::Notification < ActiveRecord::Base
     receipt_for(participant).move_to_trash
   end
 
+  #Move the notification to the trash
+  def move_to_archive(participant)
+    return if participant.nil?
+    receipt_for(participant).move_to_archive
+  end
+
   #Takes the notification out of the trash
   def untrash(participant)
     return if participant.nil?

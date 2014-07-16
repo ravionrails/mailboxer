@@ -18,13 +18,16 @@ class Mailboxer::Conversation < ActiveRecord::Base
     joins(:receipts).merge(Mailboxer::Receipt.recipient(participant)).uniq
   }
   scope :inbox, lambda {|participant|
-    participant(participant).merge(Mailboxer::Receipt.inbox.not_trash.not_deleted)
+    participant(participant).merge(Mailboxer::Receipt.inbox.not_trash.not_deleted.not_archived)
   }
   scope :sentbox, lambda {|participant|
     participant(participant).merge(Mailboxer::Receipt.sentbox.not_trash.not_deleted)
   }
   scope :trash, lambda {|participant|
     participant(participant).merge(Mailboxer::Receipt.trash)
+  }
+  scope :archive, lambda {|participant|
+    participant(participant).merge(Mailboxer::Receipt.archive)
   }
   scope :unread,  lambda {|participant|
     participant(participant).merge(Mailboxer::Receipt.is_unread)
@@ -49,6 +52,12 @@ class Mailboxer::Conversation < ActiveRecord::Base
   def move_to_trash(participant)
     return unless participant
     receipts_for(participant).move_to_trash
+  end
+
+  #Move the conversation to the trash for one of the participants
+  def move_to_archive(participant)
+    return unless participant
+    receipts_for(participant).move_to_archive
   end
 
   #Takes the conversation out of the trash for one of the participants
