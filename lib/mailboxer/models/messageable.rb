@@ -57,59 +57,119 @@ module Mailboxer
 
       #Sends a messages, starting a new conversation, with the messageable
       #as originator
-      def send_message(recipients, msg_body, subject, sanitize_text=true, attachment=nil, message_timestamp = Time.now)
-        convo = Mailboxer::ConversationBuilder.new({
-          :subject    => subject,
-          :created_at => message_timestamp,
-          :updated_at => message_timestamp
-        }).build
+      def send_message(recipients, msg_body, subject, conv_id = nil, sanitize_text=true, attachment=nil, message_timestamp = Time.now)
+        if conv_id.present?
+          convo = self.mailbox.conversations.find( conv_id, readonly: false )
+          message = convo.draft_message
+          message.update_attributes(to: nil, body: msg_body, subject: subject)
+          convo.update_attribute(:subject, subject) if convo.messages.count == 1
+          message.recipients = recipients
+        else
+          convo = Mailboxer::ConversationBuilder.new({
+            :subject    => subject,
+            :created_at => message_timestamp,
+            :updated_at => message_timestamp
+          }).build
 
-        message = Mailboxer::MessageBuilder.new({
-          :sender       => self,
-          :conversation => convo,
-          :recipients   => recipients,
-          :body         => msg_body,
-          :subject      => subject,
-          :attachment   => attachment,
-          :created_at   => message_timestamp,
-          :updated_at   => message_timestamp
-        }).build
+          message = Mailboxer::MessageBuilder.new({
+            :sender       => self,
+            :conversation => convo,
+            :recipients   => recipients,
+            :body         => msg_body,
+            :subject      => subject,
+            :attachment   => attachment,
+            :created_at   => message_timestamp,
+            :updated_at   => message_timestamp
+          }).build
+        end
 
         message.deliver false, sanitize_text
       end
 
       #Sends a messages, starting a new conversation, with the messageable
       #as originator
-      def save_message(recipients, msg_body, subject, sanitize_text=true, attachment=nil, message_timestamp = Time.now)
-        message = Mailboxer::MessageBuilder.new({
-          :sender       => self,
-          :recipients   => recipients,
-          :body         => msg_body,
-          :subject      => subject,
-          :attachment   => attachment,
-          :draft        => true,
-          :created_at   => message_timestamp,
-          :updated_at   => message_timestamp
-        }).build
+      def save_message(recipients, msg_body, subject, conv_id = nil, sanitize_text=true, attachment=nil, message_timestamp = Time.now)
+        if conv_id.present?
+          conversation = Mailboxer::Conversation.find(conv_id)
+          draft_message = conversation.draft_message
+          clean_subject = ::Mailboxer::Cleaner.instance.sanitize(subject)
+          clean_msg_body = ::Mailboxer::Cleaner.instance.sanitize(msg_body)
+          user_ids = recipients.map{|user| user.id }.join(',')
+          
+          draft_message.update_attributes({:subject => clean_subject, :body => clean_msg_body, :to => user_ids})
+          conversation.update_attribute(:subject, clean_subject)
+        else
+          convo = Mailboxer::ConversationBuilder.new({
+            :subject    => subject,
+            :created_at => message_timestamp,
+            :updated_at => message_timestamp
+          }).build
 
-        message.save
+          message = Mailboxer::MessageBuilder.new({
+            :sender       => self,
+            :conversation => convo,
+            :recipients   => recipients,
+            :to           => recipients.map{|user| user.id }.join(','),
+            :body         => msg_body,
+            :draft        => true,
+            :subject      => subject,
+            :attachment   => attachment,
+            :created_at   => message_timestamp,
+            :updated_at   => message_timestamp
+          }).build
+
+          message.draft_message false, sanitize_text
+                  
+        end
       end
 
       #Basic reply method. USE NOT RECOMENDED.
       #Use reply_to_sender, reply_to_all and reply_to_conversation instead.
       def reply(conversation, recipients, reply_body, subject=nil, sanitize_text=true, attachment=nil)
-        subject = subject || "#{conversation.subject}"
-        response = Mailboxer::MessageBuilder.new({
-          :sender       => self,
-          :conversation => conversation,
-          :recipients   => recipients,
-          :body         => reply_body,
-          :subject      => subject,
-          :attachment   => attachment
-        }).build
+        if conversation.draft_message.nil?
+          subject = subject || "#{conversation.subject}"
+          response = Mailboxer::MessageBuilder.new({
+            :sender       => self,
+            :conversation => conversation,
+            :recipients   => recipients,
+            :body         => reply_body,
+            :subject      => subject,
+            :attachment   => attachment
+          }).build
+        else
+          response = conversation.draft_message
+          response.recipients = recipients
+          clean_subject = ::Mailboxer::Cleaner.instance.sanitize(subject)
+          clean_reply_body = ::Mailboxer::Cleaner.instance.sanitize(reply_body)
+          response.update_attributes({subject: clean_subject, body: clean_reply_body, to: nil})
+        end
 
         response.recipients.delete(self)
         response.deliver true, sanitize_text
+      end
+
+      #Basic reply method. USE NOT RECOMENDED.
+      #Use reply_to_sender, reply_to_all and reply_to_conversation instead.
+      def reply_save(conversation, recipients, reply_body, subject=nil, sanitize_text=true, attachment=nil)
+        user_ids = recipients.map{|user| user.id }.join(',')
+        if conversation.draft_message.nil?
+          subject = subject || "#{conversation.subject}"
+          response = Mailboxer::MessageBuilder.new({
+            :sender       => self,
+            :conversation => conversation,
+            :recipients   => recipients,
+            :body         => reply_body,
+            :draft        => true,
+            :subject      => subject,
+            :attachment   => attachment,
+            :to           => user_ids
+          }).build.save
+        else
+          response = conversation.draft_message
+          clean_subject = ::Mailboxer::Cleaner.instance.sanitize(subject)
+          clean_reply_body = ::Mailboxer::Cleaner.instance.sanitize(reply_body)
+          response.update_attributes({subject: clean_subject, body: clean_reply_body, to: user_ids})
+        end
       end
 
       #Replies to the sender of the message in the conversation
@@ -124,14 +184,26 @@ module Mailboxer
 
       #Replies to all the recipients of the last message in the conversation and untrash any trashed message by messageable
       #if should_untrash is set to true (this is so by default)
-      def reply_to_conversation(conversation, reply_body, subject=nil, should_untrash=true, sanitize_text=true, attachment=nil)
+      def reply_to_conversation(conversation, recipients, reply_body, subject=nil, should_untrash=true, sanitize_text=true, attachment=nil)
         #move conversation to inbox if it is currently in the trash and should_untrash parameter is true.
         if should_untrash && mailbox.is_trashed?(conversation)
           mailbox.receipts_for(conversation).untrash
           mailbox.receipts_for(conversation).mark_as_not_deleted
         end
+        reply(conversation, recipients, reply_body, subject, sanitize_text, attachment)
+        #reply(conversation, conversation.last_message.recipients, reply_body, subject, sanitize_text, attachment)
+      end
 
-        reply(conversation, conversation.last_message.recipients, reply_body, subject, sanitize_text, attachment)
+      #Replies to all the recipients of the last message in the conversation and untrash any trashed message by messageable
+      #if should_untrash is set to true (this is so by default)
+      def reply_to_conversation_save(conversation, recipients, reply_body, subject=nil, should_untrash=true, sanitize_text=true, attachment=nil)
+        #move conversation to inbox if it is currently in the trash and should_untrash parameter is true.
+        # if should_untrash && mailbox.is_trashed?(conversation)
+        #   mailbox.receipts_for(conversation).untrash
+        #   mailbox.receipts_for(conversation).mark_as_not_deleted
+        # end
+
+        reply_save(conversation, recipients, reply_body, subject, sanitize_text, attachment)
       end
 
       #Mark the object as read for messageable.

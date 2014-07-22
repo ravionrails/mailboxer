@@ -65,7 +65,8 @@ class Mailboxer::Mailbox
 
   #Returns the drafts messages from mailbox
   def draft(options={})
-    Mailboxer::Message.where(options.merge( {:draft => true} ) )
+    options = options.merge(:mailbox_type => 'draft')
+    conversations(options)
   end
 
   #Returns the conversations in the archive of messageable
@@ -129,6 +130,8 @@ class Mailboxer::Mailbox
       Mailboxer::Conversation.sentbox(messageable)
     when 'trash'
       Mailboxer::Conversation.trash(messageable)
+    when 'draft'
+      Mailboxer::Conversation.draft(messageable)
     when 'archive'
       Mailboxer::Conversation.archive(messageable)
     when  'not_trash'

@@ -26,6 +26,9 @@ class Mailboxer::Conversation < ActiveRecord::Base
   scope :trash, lambda {|participant|
     participant(participant).merge(Mailboxer::Receipt.trash)
   }
+  scope :draft, lambda {|participant|
+    participant(participant).merge(Mailboxer::Receipt.draft)
+  }
   scope :archive, lambda {|participant|
     participant(participant).merge(Mailboxer::Receipt.archive)
   }
@@ -96,6 +99,11 @@ class Mailboxer::Conversation < ActiveRecord::Base
   #First message of the conversation.
   def original_message
     @original_message ||= messages.order('created_at').first
+  end
+
+  #Draft message of the conversation.
+  def draft_message
+    @draft_message ||= messages.where(:draft => true).first
   end
 
   #Sender of the last message.

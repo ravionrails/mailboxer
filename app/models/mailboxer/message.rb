@@ -29,9 +29,12 @@ class Mailboxer::Message < Mailboxer::Notification
     temp_receipts = recipients.map { |r| build_receipt(r, 'inbox') }
 
     #Sender receipt
-    sender_receipt = build_receipt(sender, 'sentbox', true)
+    sender_receipt = build_receipt(sender, 'sentbox', true) if receipts.empty?
 
-    temp_receipts << sender_receipt
+    receipts.first.update_attribute(:mailbox_type, 'sentbox') if !receipts.empty? and draft
+    self.update_attribute(:draft, false) if draft
+
+    temp_receipts << sender_receipt unless sender_receipt.nil?
 
     if temp_receipts.all?(&:save!)
 
@@ -45,4 +48,25 @@ class Mailboxer::Message < Mailboxer::Notification
     end
     sender_receipt
   end
+
+  #Delivers a Message. USE NOT RECOMENDED.
+  #Use Mailboxer::Models::Message.send_message instead.
+  def draft_message(reply = false, should_clean = true)
+    self.clean if should_clean
+
+    #Sender receipt
+    sender_receipt = [build_receipt(sender, 'draft', true)]
+
+    if sender_receipt.all?(&:save!)
+
+      conversation.touch if reply
+
+      self.recipients = nil
+
+      on_deliver_callback.call(self) if on_deliver_callback
+    end
+    sender_receipt
+  end
+
+
 end
