@@ -96,8 +96,8 @@ module Mailboxer
           clean_msg_body = ::Mailboxer::Cleaner.instance.sanitize(msg_body)
           user_ids = recipients.map{|user| user.id }.join(',')
           
-          draft_message.update_attributes({:subject => clean_subject, :body => clean_msg_body, :to => user_ids})
-          conversation.update_attribute(:subject, clean_subject)
+          draft_message.update_attributes({:subject => clean_subject, :body => clean_msg_body, :to => user_ids, :update_at => message_timestamp})
+          conversation.update_attributes({:subject => clean_subject, :update_at => message_timestamp})
         else
           convo = Mailboxer::ConversationBuilder.new({
             :subject    => subject,
@@ -141,7 +141,7 @@ module Mailboxer
           response.recipients = recipients
           clean_subject = ::Mailboxer::Cleaner.instance.sanitize(subject)
           clean_reply_body = ::Mailboxer::Cleaner.instance.sanitize(reply_body)
-          response.update_attributes({subject: clean_subject, body: clean_reply_body, to: nil})
+          response.update_attributes({subject: clean_subject, body: clean_reply_body, to: nil, :update_at => Time.now})
         end
 
         response.recipients.delete(self)
