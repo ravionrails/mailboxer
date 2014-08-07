@@ -123,7 +123,7 @@ class Mailboxer::Conversation < ActiveRecord::Base
 
   #Returns the number of messages of the conversation
   def count_messages
-    Mailboxer::Message.conversation(self).count
+    Mailboxer::Message.conversation(self).where(draft: false).count
   end
 
   #Returns true if the messageable is a participant of the conversation
