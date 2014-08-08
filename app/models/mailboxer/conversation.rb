@@ -72,7 +72,7 @@ class Mailboxer::Conversation < ActiveRecord::Base
   #Mark the conversation as deleted for one of the participants
   def mark_as_deleted(participant)
     return unless participant
-    deleted_receipts = receipts_for(participant).mark_as_deleted
+    deleted_receipts = receipts_for(participant).trash.mark_as_deleted
     if is_orphaned?
       destroy
     else
@@ -114,6 +114,11 @@ class Mailboxer::Conversation < ActiveRecord::Base
   #Last message in the conversation.
   def last_message
     @last_message ||= messages.order('created_at DESC').first
+  end
+
+  #Check whether conversation contains draft message or not
+  def has_draft?(participant)
+    !draft_message.nil? and draft_message.sender == participant
   end
 
   #Returns the receipts of the conversation for one participants

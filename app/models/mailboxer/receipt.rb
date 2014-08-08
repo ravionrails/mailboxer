@@ -158,6 +158,11 @@ class Mailboxer::Receipt < ActiveRecord::Base
     trashed
   end
 
+  #Returns if the participant have deleted the Notification
+  def is_deleted?
+    deleted
+  end
+
   protected
 
   #Removes the duplicate error about not present subject from Conversation if it has been already

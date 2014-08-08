@@ -21,6 +21,9 @@ class Mailboxer::Notification < ActiveRecord::Base
   scope :not_trashed, lambda {
     joins(:receipts).where('mailboxer_receipts.trashed' => false)
   }
+  scope :trashed, lambda { |recipient|
+    joins(:receipts).recipient(recipient).where('mailboxer_receipts.trashed' => true)
+  }
   scope :unread,  lambda {
     joins(:receipts).where('mailboxer_receipts.is_read' => false)
   }
